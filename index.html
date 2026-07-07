@@ -232,7 +232,7 @@
 
     function defaultCow(no){
       return {
-        no:String(no),status:"normal",birthDate:"",lactationCount:"",breed:"",milk:"",note:"",
+        no:String(no),earTag:"",status:"normal",birthDate:"",lactationCount:"",breed:"",milk:"",note:"",vaccines:[],
         archived:false,treatmentName:"",treatmentDate:"",withdrawalDays:"",milkSafeDate:"",
         breeding:[],activeBreedingId:"",dueDate:"",dryOffDate:"",dryStart:"",lastBirth:"",
         milkFeverHistory:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()
@@ -241,7 +241,7 @@
 
     function defaultHeifer(no){
       return {
-        no:String(no),status:"normal",birthDate:"",breed:"",note:"",archived:false,
+        no:String(no),earTag:"",status:"normal",birthDate:"",breed:"",note:"",vaccines:[],archived:false,
         breeding:[],activeBreedingId:"",dueDate:"",prepDate:"",
         createdAt:serverTimestamp(),updatedAt:serverTimestamp()
       };
@@ -249,7 +249,7 @@
 
     function defaultCalf(no){
       return {
-        no:String(no),birthDate:today(),motherNo:"",sex:"dişi",breed:"",health:"iyi",note:"",
+        no:String(no),earTag:"",birthDate:today(),motherNo:"",sex:"dişi",breed:"",health:"iyi",note:"",vaccines:[],
         colostrum:false,navel:false,suckle:false,records:[],archived:false,
         createdAt:serverTimestamp(),updatedAt:serverTimestamp()
       };
@@ -257,7 +257,7 @@
 
     function defaultYoung(no){
       return {
-        no:String(no),birthDate:today(),note:"",archived:false,
+        no:String(no),earTag:"",birthDate:today(),note:"",vaccines:[],archived:false,
         createdAt:serverTimestamp(),updatedAt:serverTimestamp()
       };
     }
@@ -465,12 +465,13 @@
     }
 
     function listRow(item,line,col){
+      const tag = item.earTag ? "Küpe: " + esc(item.earTag) + " · " : "";
       return `
         <div class="row" onclick="openItem('${col}','${item.id}')">
           <div class="no">${esc(item.no)}</div>
           <div class="grow">
             <div class="main">${statusPill(item.status || "normal")}</div>
-            <div class="small">${esc(line)}</div>
+            <div class="small">${tag}${esc(line)}</div>
           </div>
           <div class="chev">›</div>
         </div>
@@ -815,19 +816,23 @@
             <div>
               <div class="heroNo">${esc(c.no)}</div>
               ${statusPill(c.status)}
-              <div class="small">${cowLine(c)}</div>
+              <div class="small">${c.earTag ? "Küpe: " + esc(c.earTag) + " · " : ""}${cowLine(c)}</div>
             </div>
           </div>
 
           <div class="card section">
             <h2 class="green">ℹ️ Genel Bilgiler</h2>
             <div class="kvgrid">
+              <div class="kv"><label>Küpe No</label><b>${esc(c.earTag || "-")}</b></div>
               <div class="kv"><label>Yaş</label><b>${c.birthDate ? ageText(c.birthDate) : "-"}</b></div>
-              <div class="kv"><label>Kaçıncı Doğum</label><b>${c.lactationCount || "-"}</b></div>
+              <div class="kv"><label>Doğum Sayısı</label><b>${c.lactationCount || "-"}</b></div>
               <div class="kv"><label>Irk</label><b>${esc(c.breed || "-")}</b></div>
               <div class="kv"><label>Günlük Süt</label><b>${c.milk ? esc(c.milk) + " L" : "-"}</b></div>
+              <div class="kv"><label>Not</label><b>${esc(c.note || "-")}</b></div>
             </div>
           </div>
+
+          ${vaccineBlock(c)}
 
           <div class="card section">
             <h2 class="red">💉 Antibiyotik Takibi</h2>
@@ -858,24 +863,16 @@
 
           <div class="card section">
             <h2 class="purple">⚠️ Risk Uyarıları</h2>
-            <div class="row">
-              <div class="grow">
-                <div class="main">Döl riski: ${bs.risk}</div>
-                <div class="small">${bs.total} tohumlama / ${bs.tutmadi} tutmadı</div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="grow">
-                <div class="main">Doğum felci riski</div>
-                <div class="small">${hasMilkFeverRisk(c) ? "Takip gerekli" : "Normal"}</div>
-              </div>
-            </div>
+            <div class="row"><div class="grow"><div class="main">Döl riski: ${bs.risk}</div><div class="small">${bs.total} tohumlama / ${bs.tutmadi} tutmadı</div></div></div>
+            <div class="row"><div class="grow"><div class="main">Doğum felci riski</div><div class="small">${hasMilkFeverRisk(c) ? "Takip gerekli" : "Normal"}</div></div></div>
           </div>
 
           <div class="actions">
             <button class="btn red" onclick="openModal('antibiotic')">Antibiyotik Ekle</button>
             <button class="btn blue" onclick="openModal('breedingCow')">Tohumlama Gir</button>
+            <button class="btn" onclick="openModal('vaccine')">Aşı Ekle</button>
             <button class="btn orange" onclick="openModal('newBirth')">Yeni Doğum</button>
+            <button class="btn purple" onclick="openModal('editCow')">Düzenle</button>
             <button class="btn gray" onclick="archive('cows', getSelected())">Arşive Al</button>
           </div>
         </div>
@@ -894,19 +891,22 @@
             <div>
               <div class="heroNo">${esc(h.no)}</div>
               ${statusPill(h.status)}
-              <div class="small">${heiferLine(h)}</div>
+              <div class="small">${h.earTag ? "Küpe: " + esc(h.earTag) + " · " : ""}${heiferLine(h)}</div>
             </div>
           </div>
 
           <div class="card section">
             <h2 class="green">ℹ️ Genel Bilgiler</h2>
             <div class="kvgrid">
+              <div class="kv"><label>Küpe No</label><b>${esc(h.earTag || "-")}</b></div>
               <div class="kv"><label>Yaş</label><b>${ageText(h.birthDate)}</b></div>
               <div class="kv"><label>Irk</label><b>${esc(h.breed || "-")}</b></div>
               <div class="kv"><label>Doğum</label><b>${fmt(h.birthDate)}</b></div>
               <div class="kv"><label>Not</label><b>${esc(h.note || "-")}</b></div>
             </div>
           </div>
+
+          ${vaccineBlock(h)}
 
           <div class="card section">
             <h2 class="blue">🧪 Gebelik Takibi</h2>
@@ -920,8 +920,9 @@
 
           <div class="actions">
             <button class="btn blue" onclick="openModal('breedingHeifer')">Tohumlama Gir</button>
+            <button class="btn" onclick="openModal('vaccine')">Aşı Ekle</button>
+            <button class="btn purple" onclick="openModal('editHeifer')">Düzenle</button>
             <button class="btn orange" onclick="openModal('heiferToCow')">İnek Kaydına Aktar</button>
-            <button class="btn" onclick="openModal('editHeifer')">Düzenle</button>
             <button class="btn gray" onclick="archive('heifers', getSelected())">Arşive Al</button>
           </div>
         </div>
@@ -938,34 +939,35 @@
             <div>
               <div class="heroNo">${esc(c.no)}</div>
               <span class="pill ${c.health === "iyi" ? "p-normal" : "p-risk"}">${c.health === "iyi" ? "İyi" : "Riskli"}</span>
-              <div class="small">${ageText(c.birthDate)} · ${calfPeriod(c.birthDate)}</div>
+              <div class="small">${c.earTag ? "Küpe: " + esc(c.earTag) + " · " : ""}${ageText(c.birthDate)} · ${calfPeriod(c.birthDate)}</div>
             </div>
           </div>
 
           <div class="card section">
             <h2 class="green">🍼 İlk Gün / Sağlık</h2>
             <div class="kvgrid">
+              <div class="kv"><label>Küpe No</label><b>${esc(c.earTag || "-")}</b></div>
               <div class="kv"><label>Anne No</label><b>${esc(c.motherNo || "-")}</b></div>
               <div class="kv"><label>Cinsiyet</label><b>${esc(c.sex || "-")}</b></div>
+              <div class="kv"><label>Irk</label><b>${esc(c.breed || "-")}</b></div>
               <div class="kv"><label>Ağız sütü</label><b>${c.colostrum ? "Evet" : "Hayır"}</b></div>
               <div class="kv"><label>Göbek</label><b>${c.navel ? "Yapıldı" : "-"}</b></div>
             </div>
           </div>
 
+          ${vaccineBlock(c)}
+
           <div class="card section">
             <h2 class="red">🚨 Sağlık Notu</h2>
-            <div class="row">
-              <div class="grow">
-                <div class="main">${esc(c.health)}</div>
-                <div class="small">${esc(c.note || "Not yok")}</div>
-              </div>
-            </div>
+            <div class="row"><div class="grow"><div class="main">${esc(c.health)}</div><div class="small">${esc(c.note || "Not yok")}</div></div></div>
           </div>
 
           <div class="actions">
             <button class="btn" onclick="openModal('healthCalf')">Sağlık Ekle</button>
+            <button class="btn" onclick="openModal('vaccine')">Aşı Ekle</button>
             <button class="btn blue" onclick="openModal('calfToHeifer')">Düveye Aktar</button>
             <button class="btn purple" onclick="openModal('calfToYoung')">Danaya Aktar</button>
+            <button class="btn orange" onclick="openModal('editCalf')">Düzenle</button>
             <button class="btn gray" onclick="archive('calves', getSelected())">Arşive Al</button>
           </div>
         </div>
@@ -980,16 +982,18 @@
           <div class="card big" style="text-align:center">
             <div class="circle purplebg" style="margin:0 auto 12px">🐃</div>
             <div class="heroNo">${esc(y.no)}</div>
-            <div class="small">Doğum tarihi: ${fmt(y.birthDate)}</div>
+            <div class="small">${y.earTag ? "Küpe: " + esc(y.earTag) + " · " : ""}Doğum tarihi: ${fmt(y.birthDate)}</div>
             <h2>${ageText(y.birthDate)}</h2>
             <div class="small">${esc(y.note || "")}</div>
           </div>
 
+          ${vaccineBlock(y)}
+
           <div class="actions">
             <button class="btn purple" onclick="openModal('editYoung')">Düzenle</button>
+            <button class="btn" onclick="openModal('vaccine')">Aşı Ekle</button>
             <button class="btn gray" onclick="archive('youngCattle', getSelected())">Arşive Al</button>
             <button class="btn red" onclick="remove('youngCattle', getSelected())">Kalıcı Sil</button>
-            <button class="btn white" onclick="go('young')">Geri</button>
           </div>
         </div>
         ${nav()}
@@ -1004,6 +1008,34 @@
         supheli:"Şüpheli",
         bos:"Boş"
       }[r] || r || "Bekliyor";
+    }
+
+
+    function statusOptions(value){
+      const opts = [
+        ["normal","Normal"],["antibiyotik","Antibiyotikli"],["tohumlandi","Tohumlandı"],
+        ["gebe","Gebe kesinleşti"],["kuru","Kuru"],["dogum","Doğum yaklaşan"],["yeni","Yeni doğum"]
+      ];
+      return opts.map(o => `<option value="${o[0]}" ${value === o[0] ? "selected" : ""}>${o[1]}</option>`).join("");
+    }
+
+    function check(name,label,checked){
+      return `<label style="display:block;margin:8px 0;font-weight:850"><input type="checkbox" name="${name}" ${checked ? "checked" : ""}> ${label}</label>`;
+    }
+
+    function vaccineBlock(item){
+      const v = item.vaccines || [];
+      return `
+        <div class="card section">
+          <h2 class="green">💉 Aşı Kayıtları</h2>
+          ${v.map((a,i) => simpleRow(
+            (i+1) + ".",
+            esc(a.name || "Aşı"),
+            fmt(a.date) + (a.dose ? " · Doz: " + esc(a.dose) : "") + (a.person ? " · Vuran: " + esc(a.person) : "") + (a.nextDate ? " · Tekrar: " + fmt(a.nextDate) : "") + (a.note ? " · " + esc(a.note) : ""),
+            "green"
+          )).join("") || `<div class="empty">Aşı kaydı yok</div>`}
+        </div>
+      `;
     }
 
     function dateFields(name,label="Tarih",value=today()){
@@ -1039,42 +1071,65 @@
       const item = getSelected();
       let html = "";
 
-      if(state.modal === "addCow"){
-        html = formWrap("İnek Ekle",`
-          <div class="formrow"><label>İnek No</label><input name="no" inputmode="numeric" required></div>
-          ${dateFields("birthDate","Doğum tarihi")}
-          <div class="formrow"><label>Kaçıncı doğum</label><input name="lactationCount" inputmode="numeric"></div>
-          <div class="formrow"><label>Irk</label><input name="breed"></div>
-          <div class="formrow"><label>Günlük süt L</label><input name="milk" inputmode="decimal"></div>
+      if(state.modal === "addCow" || state.modal === "editCow"){
+        html = formWrap(state.modal === "addCow" ? "İnek Ekle" : "İnek Düzenle",`
+          <div class="formrow"><label>İnek No / Ahır No</label><input name="no" inputmode="numeric" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Küpe No</label><input name="earTag" value="${esc(item?.earTag || "")}" inputmode="numeric"></div>
+          <div class="formrow"><label>Durum</label><select name="status">${statusOptions(item?.status || "normal")}</select></div>
+          ${dateFields("birthDate","Doğum tarihi",item?.birthDate || today())}
+          <div class="formrow"><label>Doğum sayısı / kaçıncı doğumu</label><input name="lactationCount" inputmode="numeric" value="${esc(item?.lactationCount || "")}"></div>
+          <div class="formrow"><label>Irk</label><input name="breed" value="${esc(item?.breed || "")}"></div>
+          <div class="formrow"><label>Günlük süt L</label><input name="milk" inputmode="decimal" value="${esc(item?.milk || "")}"></div>
+          ${check("milkFeverHistory","Geçmiş doğum felci var",!!item?.milkFeverHistory)}
+          <div class="formrow"><label>Not</label><textarea name="note">${esc(item?.note || "")}</textarea></div>
         `,"saveAddCow");
       }
 
       if(state.modal === "addHeifer" || state.modal === "editHeifer"){
         html = formWrap(state.modal === "addHeifer" ? "Düve Ekle" : "Düve Düzenle",`
-          <div class="formrow"><label>Düve No</label><input name="no" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Düve No / Ahır No</label><input name="no" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Küpe No</label><input name="earTag" value="${esc(item?.earTag || "")}" inputmode="numeric"></div>
+          <div class="formrow"><label>Durum</label><select name="status">${statusOptions(item?.status || "normal")}</select></div>
           ${dateFields("birthDate","Doğum tarihi",item?.birthDate || today())}
           <div class="formrow"><label>Irk</label><input name="breed" value="${esc(item?.breed || "")}"></div>
           <div class="formrow"><label>Not</label><textarea name="note">${esc(item?.note || "")}</textarea></div>
         `,"saveAddHeifer");
       }
 
-      if(state.modal === "addCalf"){
-        html = formWrap("Buzağı Ekle",`
-          <div class="formrow"><label>Buzağı No</label><input name="no" required></div>
-          <div class="formrow"><label>Anne No</label><input name="motherNo"></div>
-          ${dateFields("birthDate","Doğum tarihi")}
-          <div class="formrow"><label>Cinsiyet</label><select name="sex"><option value="dişi">Dişi</option><option value="erkek">Erkek</option></select></div>
-          <div class="formrow"><label>Sağlık</label><select name="health"><option value="iyi">İyi</option><option value="risk">Riskli</option><option value="hasta">Hasta</option></select></div>
-          <div class="formrow"><label>Not</label><textarea name="note"></textarea></div>
+      if(state.modal === "addCalf" || state.modal === "editCalf"){
+        html = formWrap(state.modal === "addCalf" ? "Buzağı Ekle" : "Buzağı Düzenle",`
+          <div class="formrow"><label>Buzağı No / Ahır No</label><input name="no" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Küpe No</label><input name="earTag" value="${esc(item?.earTag || "")}" inputmode="numeric"></div>
+          <div class="formrow"><label>Anne No</label><input name="motherNo" value="${esc(item?.motherNo || "")}"></div>
+          ${dateFields("birthDate","Doğum tarihi",item?.birthDate || today())}
+          <div class="formrow"><label>Cinsiyet</label><select name="sex"><option value="dişi" ${item?.sex === "dişi" ? "selected" : ""}>Dişi</option><option value="erkek" ${item?.sex === "erkek" ? "selected" : ""}>Erkek</option></select></div>
+          <div class="formrow"><label>Irk</label><input name="breed" value="${esc(item?.breed || "")}"></div>
+          <div class="formrow"><label>Sağlık</label><select name="health"><option value="iyi" ${item?.health === "iyi" ? "selected" : ""}>İyi</option><option value="risk" ${item?.health === "risk" ? "selected" : ""}>Riskli</option><option value="hasta" ${item?.health === "hasta" ? "selected" : ""}>Hasta</option></select></div>
+          ${check("colostrum","Ağız sütü tamam",!!item?.colostrum)}
+          ${check("navel","Göbek bakımı yapıldı",!!item?.navel)}
+          ${check("suckle","Emme iyi",!!item?.suckle)}
+          <div class="formrow"><label>Not</label><textarea name="note">${esc(item?.note || "")}</textarea></div>
         `,"saveAddCalf");
       }
 
       if(state.modal === "addYoung" || state.modal === "editYoung"){
         html = formWrap(state.modal === "addYoung" ? "Dana Ekle" : "Dana Düzenle",`
-          <div class="formrow"><label>Dana No</label><input name="no" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Dana No / Ahır No</label><input name="no" value="${esc(item?.no || "")}" required></div>
+          <div class="formrow"><label>Küpe No</label><input name="earTag" value="${esc(item?.earTag || "")}" inputmode="numeric"></div>
           ${dateFields("birthDate","Doğum tarihi",item?.birthDate || today())}
           <div class="formrow"><label>Not</label><textarea name="note">${esc(item?.note || "")}</textarea></div>
         `,"saveAddYoung");
+      }
+
+      if(state.modal === "vaccine"){
+        html = formWrap("Aşı Ekle",`
+          ${dateFields("date","Aşı tarihi")}
+          <div class="formrow"><label>Aşı adı</label><input name="name" required></div>
+          <div class="formrow"><label>Doz / miktar</label><input name="dose"></div>
+          <div class="formrow"><label>Vuran kişi / veteriner</label><input name="person"></div>
+          ${dateFields("nextDate","Tekrar tarihi","")}
+          <div class="formrow"><label>Not</label><textarea name="note"></textarea></div>
+        `,"saveVaccine");
       }
 
       if(state.modal === "antibiotic"){
@@ -1127,21 +1182,21 @@
 
       if(state.modal === "calfToHeifer"){
         html = formWrap("Düveye Aktar",`
-          <div class="notice">Buzağı düveler bölümüne geçer. Doğum tarihi aynen taşınır.</div>
+          <div class="notice">Buzağı düveler bölümüne geçer. Doğum tarihi, küpe no ve aşı kayıtları aynen taşınır.</div>
           <div class="formrow"><label>Yeni düve no</label><input name="no" value="${esc(item?.no || "")}" required></div>
         `,"saveCalfToHeifer");
       }
 
       if(state.modal === "calfToYoung"){
         html = formWrap("Danaya Aktar",`
-          <div class="notice">Buzağı danalar bölümüne geçer. Yaş takibi doğum tarihiyle devam eder.</div>
+          <div class="notice">Buzağı danalar bölümüne geçer. Yaş, küpe no ve aşı kayıtları devam eder.</div>
           <div class="formrow"><label>Yeni dana no</label><input name="no" value="${esc(item?.no || "")}" required></div>
         `,"saveCalfToYoung");
       }
 
       if(state.modal === "heiferToCow"){
         html = formWrap("İnek Kaydına Aktar",`
-          <div class="notice">Düve inekler bölümüne geçer. Süt ve sağım alanları açılır.</div>
+          <div class="notice">Düve inekler bölümüne geçer. Küpe no ve aşı kayıtları aynen taşınır.</div>
           <div class="formrow"><label>İnek no</label><input name="no" value="${esc(item?.no || "")}" required></div>
           ${dateFields("lastBirth","Doğum tarihi")}
         `,"saveHeiferToCow");
@@ -1252,12 +1307,19 @@
     window.saveAddCow = async function(e){
       e.preventDefault();
       let d = fd(e);
-      await save("cows",d.no,{
+      let old = getSelected();
+      await save("cows",old?.id || d.no,{
         ...defaultCow(d.no),
+        ...old,
+        no:d.no,
+        earTag:d.earTag,
+        status:d.status || old?.status || "normal",
         birthDate:d.birthDate,
         lactationCount:d.lactationCount,
         breed:d.breed,
-        milk:d.milk
+        milk:d.milk,
+        milkFeverHistory:!!d.milkFeverHistory,
+        note:d.note
       });
     };
 
@@ -1265,11 +1327,12 @@
       e.preventDefault();
       let d = fd(e);
       let old = getSelected();
-
       await save("heifers",old?.id || d.no,{
         ...defaultHeifer(d.no),
         ...old,
         no:d.no,
+        earTag:d.earTag,
+        status:d.status || old?.status || "normal",
         birthDate:d.birthDate,
         breed:d.breed,
         note:d.note
@@ -1279,13 +1342,20 @@
     window.saveAddCalf = async function(e){
       e.preventDefault();
       let d = fd(e);
-
-      await save("calves",d.no,{
+      let old = getSelected();
+      await save("calves",old?.id || d.no,{
         ...defaultCalf(d.no),
+        ...old,
+        no:d.no,
+        earTag:d.earTag,
         motherNo:d.motherNo,
         birthDate:d.birthDate,
         sex:d.sex,
+        breed:d.breed,
         health:d.health,
+        colostrum:!!d.colostrum,
+        navel:!!d.navel,
+        suckle:!!d.suckle,
         note:d.note
       });
     };
@@ -1294,21 +1364,37 @@
       e.preventDefault();
       let d = fd(e);
       let old = getSelected();
-
       await save("youngCattle",old?.id || d.no,{
         ...defaultYoung(d.no),
         ...old,
         no:d.no,
+        earTag:d.earTag,
         birthDate:d.birthDate,
         note:d.note
       });
+    };
+
+    window.saveVaccine = async function(e){
+      e.preventDefault();
+      let d = fd(e);
+      let item = getSelected();
+      let col = state.selected.split("/")[0];
+      let rec = {
+        id:uid(),
+        date:d.date,
+        name:d.name,
+        dose:d.dose,
+        person:d.person,
+        nextDate:d.nextDate,
+        note:d.note
+      };
+      await save(col,item.id,{vaccines:[...(item.vaccines || []),rec]});
     };
 
     window.saveAntibiotic = async function(e){
       e.preventDefault();
       let d = fd(e);
       let c = getSelected();
-
       await save("cows",c.id,{
         status:"antibiyotik",
         treatmentName:d.treatmentName,
@@ -1343,11 +1429,8 @@
         dueDate:b.dueDate
       };
 
-      if(col === "cows"){
-        patch.dryOffDate = addDays(b.dueDate,-DRY_BEFORE);
-      }else{
-        patch.prepDate = addDays(b.dueDate,-DRY_BEFORE);
-      }
+      if(col === "cows") patch.dryOffDate = addDays(b.dueDate,-DRY_BEFORE);
+      else patch.prepDate = addDays(b.dueDate,-DRY_BEFORE);
 
       await save(col,item.id,patch);
     };
@@ -1356,7 +1439,6 @@
       e.preventDefault();
       let d = fd(e);
       let c = getSelected();
-
       await save("cows",c.id,{
         status:"yeni",
         lastBirth:d.lastBirth,
@@ -1368,13 +1450,7 @@
       e.preventDefault();
       let d = fd(e);
       let c = getSelected();
-
-      let rec = {
-        date:d.date,
-        health:d.health,
-        note:d.note
-      };
-
+      let rec = {date:d.date,health:d.health,note:d.note};
       await save("calves",c.id,{
         health:d.health,
         note:d.note || c.note,
@@ -1389,14 +1465,14 @@
       e.preventDefault();
       let d = fd(e);
       let c = getSelected();
-
       await save("heifers",d.no,{
         ...defaultHeifer(d.no),
+        earTag:c.earTag || "",
         birthDate:c.birthDate,
         breed:c.breed || "",
+        vaccines:c.vaccines || [],
         note:"Buzağıdan aktarıldı: " + c.no
       });
-
       await archive("calves",c);
     };
 
@@ -1404,13 +1480,13 @@
       e.preventDefault();
       let d = fd(e);
       let c = getSelected();
-
       await save("youngCattle",d.no,{
         ...defaultYoung(d.no),
+        earTag:c.earTag || "",
         birthDate:c.birthDate,
+        vaccines:c.vaccines || [],
         note:"Buzağıdan aktarıldı: " + c.no
       });
-
       await archive("calves",c);
     };
 
@@ -1418,17 +1494,17 @@
       e.preventDefault();
       let d = fd(e);
       let h = getSelected();
-
       await save("cows",d.no,{
         ...defaultCow(d.no),
+        earTag:h.earTag || "",
         birthDate:h.birthDate,
         breed:h.breed,
+        vaccines:h.vaccines || [],
         lactationCount:"1",
         status:"yeni",
         lastBirth:d.lastBirth,
         note:"Düveden aktarıldı: " + h.no
       });
-
       await archive("heifers",h);
     };
 
