@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ahır Takip</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f3f5f7;color:#101828}
+    .app{max-width:520px;margin:auto;min-height:100vh;padding-bottom:80px}
+    .top{background:#0f6b3d;color:white;padding:18px;border-radius:0 0 24px 24px;position:sticky;top:0;z-index:2}
+    .top h1{margin:0;font-size:24px}
+    .top small{opacity:.85}
+    .wrap{padding:14px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    .stat b{font-size:30px;display:block;margin-top:6px}
+    .red{color:#dc2626}.yellow{color:#ca8a04}.blue{color:#2563eb}.green{color:#16a34a}.gray{color:#667085}
+    .btn{border:0;border-radius:14px;padding:12px 14px;font-weight:800;background:#0f6b3d;color:white;width:100%;margin-top:10px}
+    .btn2{border:1px solid #e5e7eb;background:white;color:#101828}
+    .danger{background:#fff1f1;border:1px solid #fecaca;color:#991b1b;border-radius:16px;padding:12px;margin-bottom:12px;font-weight:800}
+    .row{display:flex;align-items:center;gap:10px;background:white;border:1px solid #e5e7eb;border-radius:16px;padding:12px;margin-bottom:8px}
+    .row:active{transform:scale(.99)}
+    .no{width:38px;height:38px;border-radius:14px;background:#f2f4f7;display:grid;place-items:center;font-weight:900}
+    .grow{flex:1}
+    .sub{font-size:13px;color:#667085;margin-top:2px}
+    .badge{display:inline-block;border-radius:999px;padding:6px 10px;color:white;font-size:13px;font-weight:900}
+    .b-normal{background:#667085}.b-kuru{background:#ca8a04}.b-antibiyotik{background:#dc2626}.b-tohumlama{background:#2563eb}.b-dogum{background:#f97316}.b-yeni{background:#16a34a}
+    input,select,textarea{width:100%;padding:12px;border:1px solid #e5e7eb;border-radius:14px;font-size:16px;background:white}
+    label{font-size:13px;font-weight:800;color:#667085;display:block;margin:10px 0 5px}
+    .tabs{display:flex;gap:8px;overflow:auto;margin-bottom:10px}
+    .tab{border:1px solid #e5e7eb;background:white;border-radius:999px;padding:9px 12px;font-weight:800;white-space:nowrap}
+    .tab.on{background:#dcfce7;color:#0f6b3d;border-color:#86efac}
+    .nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);max-width:520px;width:100%;display:grid;grid-template-columns:repeat(4,1fr);background:white;border-top:1px solid #e5e7eb;padding:7px}
+    .nav button{border:0;background:white;border-radius:14px;padding:8px 4px;font-weight:800;color:#667085}
+    .nav button.on{background:#dcfce7;color:#0f6b3d}
+    .photo{width:92px;height:92px;border-radius:26px;background:#dcfce7;display:grid;place-items:center;font-size:42px;overflow:hidden;border:1px solid #e5e7eb}
+    .photo img{width:100%;height:100%;object-fit:cover}
+    .profile{display:flex;gap:14px;align-items:center}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:end;z-index:5}
+    .modal.show{display:flex}
+    .sheet{background:#f3f5f7;width:100%;max-width:520px;margin:auto;border-radius:24px 24px 0 0;padding:16px;max-height:88vh;overflow:auto}
+    .sheet-head{display:flex;justify-content:space-between;align-items:center}
+    .x{border:0;background:white;border-radius:14px;width:42px;height:42px;font-size:24px}
+    .hidden{display:none}
+  </style>
+</head>
+
+<body>
+<div id="root"></div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {getFirestore,collection,doc,setDoc,getDocs,onSnapshot,writeBatch,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+/* CANLI TAKİP İÇİN BURAYI FIREBASE'DEN DOLDURACAĞIZ */
+const firebaseConfig = {
+  apiKey: "BURAYA_API_KEY",
+  authDomain: "BURAYA_PROJECT_ID.firebaseapp.com",
+  projectId: "BURAYA_PROJECT_ID",
+  storageBucket: "BURAYA_PROJECT_ID.appspot.com",
+  messagingSenderId: "BURAYA_SENDER_ID",
+  appId: "BURAYA_APP_ID"
+};
+
+const root=document.getElementById("root");
+
+const S={
+  normal:["Normal","b-normal","⚪"],
+  kuru:["Kuru","b-kuru","🟡"],
+  antibiyotik:["Antibiyotikli","b-antibiyotik","🔴"],
+  tohumlama:["Tohumlama","b-tohumlama","🔵"],
+  dogum:["Doğum Yaklaşan","b-dogum","🟠"],
+  yeni:["Yeni Doğum","b-yeni","🟢"]
+};
+
+let state={
+  view:"home",
+  cow:null,
+  filter:"all",
+  search:"",
+  modal:"",
+  cows:[],
+  db:null,
+  storage:null,
+  live:false,
+  farm:getFarm()
+};
+
+function getFarm(){
+  const u=new URL(location.href);
+  let f=u.searchParams.get("farm");
+  if(!f){
+    f="ahir-"+Math.random().toString(36).slice(2,8);
+    u.searchParams.set("farm",f);
+    history.replaceState(null,"",u);
+  }
+  return f;
+}
+
+function configured(){
+  return firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("BURAYA");
+}
+
+function today(){
+  return new Date().toISOString().slice(0,10);
+}
+
+function addDays(d,n){
+  const x=new Date((d||today())+"T12:00:00");
+  x.setDate(x.getDate()+Number(n||0));
+  return x.toISOString().slice(0,10);
+}
+
+function daysLeft(d){
+  if(!d)return "";
+  const a=new Date(today()+"T00:00:00");
+  const b=new Date(d+"T00:00:00");
+  return Math.ceil((b-a)/86400000);
+}
+
+function tr(d){
+  if(!d)return "-";
+  const [y,m,day]=d.split("-");
+  return `${day}.${m}.${y}`;
+}
+
+function defaultCow(no){
+  return {
+    no,
+    status:"normal",
+    group:"Sağmal",
+    milk:no%3===0?22:24,
+    lastBirth:"",
+    dueDate:"",
+    treatment:"",
+    treatmentStart:"",
+    milkSafeDate:"",
+    vaccine:"",
+    vaccineDate:"",
+    nextVaccine:"",
+    breedingDate:"",
+    note:"",
+    photoUrl:""
+  };
+}
+
+async function init(){
+  if(configured()){
+    try{
+      const app=initializeApp(firebaseConfig);
+      state.db=getFirestore(app);
+      state.storage=getStorage(app);
+      await signInAnonymously(getAuth(app));
+      state.live=true;
+      await ensureCows();
+      watch();
+      return;
+    }catch(e){
+      console.log(e);
+      state.live=false;
+    }
+  }
+  loadLocal();
+  render();
+}
+
+function cowsCol(){
+  return collection(state.db,"farms",state.farm,"cows");
+}
+function cowDoc(no){
+  return doc(state.db,"farms",state.farm,"cows",String(no));
+}
+
+async function ensureCows(){
+  const snap=await getDocs(cowsCol());
+  if(!snap.empty)return;
+  const batch=writeBatch(state.db);
+  for(let i=1;i<=40;i++){
+    batch.set(cowDoc(i),{...defaultCow(i),createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  }
+  await batch.commit();
+}
+
+function watch(){
+  onSnapshot(cowsCol(),snap=>{
+    state.cows=snap.docs.map(d=>({...d.data(),no:Number(d.id)})).sort((a,b)=>a.no-b.no);
+    render();
+  });
+}
+
+function loadLocal(){
+  const raw=localStorage.getItem("ahir:"+state.farm);
+  state.cows=raw?JSON.parse(raw):Array.from({length:40},(_,i)=>defaultCow(i+1));
+  saveLocal();
+}
+function saveLocal(){
+  localStorage.setItem("ahir:"+state.farm,JSON.stringify(state.cows));
+}
+
+async function updateCow(no,patch){
+  if(state.live){
+    await setDoc(cowDoc(no),{...patch,updatedAt:serverTimestamp()},{merge:true});
+  }else{
+    state.cows=state.cows.map(c=>c.no===no?{...c,...patch}:c);
+    saveLocal();
+    render();
+  }
+}
+
+function counts(){
+  const c=state.cows;
+  return {
+    total:c.length,
+    normal:c.filter(x=>x.status==="normal").length,
+    kuru:c.filter(x=>x.status==="kuru").length,
+    antibiyotik:c.filter(x=>x.status==="antibiyotik").length,
+    tohumlama:c.filter(x=>x.status==="tohumlama").length,
+    dogum:c.filter(x=>x.status==="dogum").length,
+    yeni:c.filter(x=>x.status==="yeni").length
+  };
+}
+
+function info(c){
+  if(c.status==="antibiyotik"){
+    const d=daysLeft(c.milkSafeDate);
+    if(d==="")return "Süt tanka girmez";
+    if(d<=0)return "Bugün kontrol";
+    return `Süt tanka girmez - ${d} gün`;
+  }
+  if(c.status==="kuru"){
+    const d=daysLeft(c.dueDate);
+    return d===""?"Sağıma alınmaz":`Doğuma ${d} gün`;
+  }
+  if(c.status==="dogum"){
+    const d=daysLeft(c.dueDate);
+    return d===""?"Doğum takip":`Doğuma ${d} gün`;
+  }
+  if(c.status==="tohumlama")return "Kızgınlık/tohumlama takip";
+  if(c.status==="yeni")return "Yeni doğum takip";
+  return `${c.milk||0} L`;
+}
+
+function list(){
+  let arr=[...state.cows];
+  if(state.filter!=="all")arr=arr.filter(c=>c.status===state.filter);
+  if(state.search)arr=arr.filter(c=>String(c.no).includes(state.search));
+  return arr.sort((a,b)=>a.no-b.no);
+}
+
+function top(title){
+  return `
+  <div class="top">
+    <h1>🐄 ${title}</h1>
+    <small>${state.live?"Canlı Firebase mod":"Demo/local mod"} · Çiftlik: ${state.farm}</small>
+  </div>`;
+}
+
+function nav(){
+  const items=[["home","Ana Sayfa","🏠"],["cows","İnekler","🐄"],["milking","Sağım","🥛"],["calendar","Takvim","📅"]];
+  return `<div class="nav">${items.map(i=>`<button class="${state.view===i[0]?"on":""}" onclick="go('${i[0]}')">${i[2]}<br>${i[1]}</button>`).join("")}</div>`;
+}
+
+function badge(st){
+  const x=S[st]||S.normal;
+  return `<span class="badge ${x[1]}">${x[0]}</span>`;
+}
+
+function cowRow(c){
+  const x=S[c.status]||S.normal;
+  return `<div class="row" onclick="openCow(${c.no})">
+    <div class="no">${c.no}</div>
+    <div class="grow"><b>${x[2]} ${x[0]}</b><div class="sub">${info(c)}</div></div>
+    <b>›</b>
+  </div>`;
+}
+
+function home(){
+  const c=counts();
+  return `${top("Ahır Takip")}
+  <div class="wrap">
+    ${!state.live?`<div class="danger">Canlı takip için Firebase ayarı girilecek. Şu an sadece bu cihazda çalışır.</div>`:""}
+    <div class="grid">
+      <div class="card stat">Toplam İnek <b class="green">${c.total}</b></div>
+      <div class="card stat">Antibiyotikli <b class="red">${c.antibiyotik}</b></div>
+      <div class="card stat">Kuru <b class="yellow">${c.kuru}</b></div>
+      <div class="card stat">Tohumlama <b class="blue">${c.tohumlama}</b></div>
+      <div class="card stat">Doğum Yaklaşan <b>${c.dogum}</b></div>
+      <div class="card stat">Yeni Doğum <b class="green">${c.yeni}</b></div>
+    </div>
+    <h2>Bugün Dikkat</h2>
+    ${state.cows.filter(x=>x.status==="antibiyotik"||x.status==="dogum"||x.status==="tohumlama").slice(0,8).map(cowRow).join("") || `<div class="card">Bugün özel uyarı yok.</div>`}
+    <button class="btn" onclick="share()">Linki Paylaş</button>
+  </div>${nav()}`;
+}
+
+function cowsPage(){
+  const tabs=[
+    ["all","Tümü"],["kuru","Kuru"],["antibiyotik","Antibiyotikli"],["tohumlama","Tohumlama"],["dogum","Doğum"],["yeni","Yeni Doğum"],["normal","Normal"]
+  ];
+  return `${top("Tüm İnekler")}
+  <div class="wrap">
+    <input placeholder="İnek no ara" value="${state.search}" oninput="state.search=this.value;render()">
+    <div class="tabs">${tabs.map(t=>`<button class="tab ${state.filter===t[0]?"on":""}" onclick="state.filter='${t[0]}';render()">${t[1]}</button>`).join("")}</div>
+    ${list().map(cowRow).join("") || `<div class="card">Bu listede inek yok.</div>`}
+  </div>${nav()}`;
+}
+
+function milking(){
+  const red=state.cows.filter(c=>c.status==="antibiyotik");
+  const noMilk=state.cows.filter(c=>c.status==="kuru"||c.status==="dogum");
+  const ok=state.cows.filter(c=>!["antibiyotik","kuru","dogum"].includes(c.status));
+  return `${top("Sağım")}
+  <div class="wrap">
+    ${red.length?`<div class="danger">DİKKAT: Kırmızı listedeki süt tanka girmez.</div>`:""}
+    <h2>❌ Tanka Girmeyecek</h2>${red.map(cowRow).join("")||`<div class="card">Yok</div>`}
+    <h2>🚫 Sağıma Alınmayacak</h2>${noMilk.map(cowRow).join("")||`<div class="card">Yok</div>`}
+    <h2>✅ Tanka Girebilir</h2><div class="card">${ok.map(c=>c.no).join(", ")||"Boş"}</div>
+  </div>${nav()}`;
+}
+
+function calendarPage(){
+  return `${top("Takvim")}
+  <div class="wrap">
+    <h2>Yaklaşanlar</h2>
+    ${state.cows.filter(c=>c.status!=="normal").map(cowRow).join("") || `<div class="card">Yaklaşan işlem yok.</div>`}
+  </div>${nav()}`;
+}
+
+function detail(){
+  const c=state.cows.find(x=>x.no===state.cow);
+  if(!c)return cowsPage();
+  const milkText=c.status==="antibiyotik"?"Tanka Girmez":c.status==="kuru"?"Sağıma Alınmaz":"Tanka Girer";
+  return `${top("İnek Kartı")}
+  <div class="wrap">
+    ${c.status==="antibiyotik"?`<div class="danger">Bu ineğin sütü tanka girmez. Ayrı sağ.</div>`:""}
+    <div class="card profile">
+      <div class="photo">${c.photoUrl?`<img src="${c.photoUrl}">`:"🐄"}</div>
+      <div>
+        <h2 style="margin:0">NO: ${c.no}</h2>
+        ${badge(c.status)}
+        <button class="btn btn2" onclick="pickPhoto(${c.no})">📷 Fotoğraf Yükle</button>
+        <input id="file-${c.no}" class="hidden" type="file" accept="image/*" capture="environment" onchange="uploadPhoto(${c.no},this.files[0])">
+      </div>
+    </div>
+
+    <div class="card">
+      <p><b>Süt:</b> <span class="${c.status==="antibiyotik"?"red":"green"}">${milkText}</span></p>
+      <p><b>Grup:</b> ${c.group||"-"}</p>
+      <p><b>Günlük süt:</b> ${c.milk||0} L</p>
+      <p><b>Son doğum:</b> ${tr(c.lastBirth)}</p>
+      <p><b>Tahmini doğum:</b> ${tr(c.dueDate)}</p>
+      <p><b>Tedavi:</b> ${c.treatment||"-"}</p>
+      <p><b>Süt tanka girebilir:</b> <span class="red">${tr(c.milkSafeDate)}</span></p>
+      <p><b>Not:</b> ${c.note||"-"}</p>
+    </div>
+
+    <div class="grid">
+      <button class="btn" onclick="openModal('treatment')">Tedavi</button>
+      <button class="btn" onclick="openModal('vaccine')">Aşı</button>
+      <button class="btn" onclick="openModal('breeding')">Tohumlama</button>
+      <button class="btn" onclick="openModal('edit')">Düzenle</button>
+    </div>
+    <button class="btn btn2" onclick="go('cows')">Listeye Dön</button>
+  </div>${nav()}${modal(c)}`;
+}
+
+function modal(c){
+  if(!state.modal)return `<div></div>`;
+  let body="";
+  if(state.modal==="treatment")body=`
+    <label>İlaç/Tedavi adı</label><input id="treat" value="${c.treatment||""}" placeholder="Meme antibiyotiği">
+    <label>Başlangıç tarihi</label><input id="treatStart" type="date" value="${c.treatmentStart||today()}">
+    <label>Süt arınma süresi / gün</label><input id="withdraw" type="number" value="5">
+    <button class="btn" onclick="saveTreatment()">Kaydet ve kırmızıya al</button>`;
+  if(state.modal==="vaccine")body=`
+    <label>Aşı adı</label><input id="vac" value="${c.vaccine||""}" placeholder="Şap aşısı">
+    <label>Aşı tarihi</label><input id="vacDate" type="date" value="${c.vaccineDate||today()}">
+    <label>Sonraki aşı</label><input id="nextVac" type="date" value="${c.nextVaccine||""}">
+    <button class="btn" onclick="saveVaccine()">Aşıyı kaydet</button>`;
+  if(state.modal==="breeding")body=`
+    <label>Tohumlama tarihi</label><input id="breed" type="date" value="${c.breedingDate||today()}">
+    <label>Tahmini doğum</label><input id="due" type="date" value="${c.dueDate||addDays(today(),280)}">
+    <button class="btn" onclick="saveBreeding()">Kaydet</button>`;
+  if(state.modal==="edit")body=`
+    <label>Durum</label><select id="status">${Object.keys(S).map(k=>`<option value="${k}" ${c.status===k?"selected":""}>${S[k][0]}</option>`).join("")}</select>
+    <label>Grup</label><input id="group" value="${c.group||"Sağmal"}">
+    <label>Günlük süt</label><input id="milk" type="number" value="${c.milk||0}">
+    <label>Son doğum</label><input id="lastBirth" type="date" value="${c.lastBirth||""}">
+    <label>Tahmini doğum</label><input id="due2" type="date" value="${c.dueDate||""}">
+    <label>Not</label><textarea id="note">${c.note||""}</textarea>
+    <button class="btn" onclick="saveEdit()">Kaydet</button>`;
+
+  return `<div class="modal show"><div class="sheet">
+    <div class="sheet-head"><h2>İşlem</h2><button class="x" onclick="closeModal()">×</button></div>
+    ${body}
+  </div></div>`;
+}
+
+function render(){
+  let html="";
+  if(state.view==="home")html=home();
+  if(state.view==="cows")html=cowsPage();
+  if(state.view==="milking")html=milking();
+  if(state.view==="calendar")html=calendarPage();
+  if(state.view==="detail")html=detail();
+  root.innerHTML=`<div class="app">${html}</div>`;
+}
+
+window.go=v=>{state.view=v;state.modal="";render()};
+window.openCow=no=>{state.cow=no;state.view="detail";render()};
+window.openModal=m=>{state.modal=m;render()};
+window.closeModal=()=>{state.modal="";render()};
+
+window.share=async()=>{
+  const u=new URL(location.href);
+  u.searchParams.set("farm",state.farm);
+  try{await navigator.clipboard.writeText(u.href);alert("Link kopyalandı. WhatsApp'a yapıştır.");}
+  catch{prompt("Link:",u.href);}
+};
+
+window.saveTreatment=async()=>{
+  const start=document.getElementById("treatStart").value;
+  const days=document.getElementById("withdraw").value;
+  await updateCow(state.cow,{
+    status:"antibiyotik",
+    group:"Tedavili",
+    treatment:document.getElementById("treat").value||"Tedavi",
+    treatmentStart:start,
+    milkSafeDate:addDays(start,days)
+  });
+  state.modal="";render();
+};
+
+window.saveVaccine=async()=>{
+  await updateCow(state.cow,{
+    vaccine:document.getElementById("vac").value,
+    vaccineDate:document.getElementById("vacDate").value,
+    nextVaccine:document.getElementById("nextVac").value
+  });
+  state.modal="";render();
+};
+
+window.saveBreeding=async()=>{
+  await updateCow(state.cow,{
+    status:"tohumlama",
+    breedingDate:document.getElementById("breed").value,
+    dueDate:document.getElementById("due").value
+  });
+  state.modal="";render();
+};
+
+window.saveEdit=async()=>{
+  await updateCow(state.cow,{
+    status:document.getElementById("status").value,
+    group:document.getElementById("group").value,
+    milk:Number(document.getElementById("milk").value||0),
+    lastBirth:document.getElementById("lastBirth").value,
+    dueDate:document.getElementById("due2").value,
+    note:document.getElementById("note").value
+  });
+  state.modal="";render();
+};
+
+window.pickPhoto=no=>{
+  document.getElementById("file-"+no).click();
+};
+
+window.uploadPhoto=async(no,file)=>{
+  if(!file)return;
+  if(!file.type.startsWith("image/"))return alert("Sadece fotoğraf seç.");
+
+  if(state.live && state.storage){
+    try{
+      const path=`farms/${state.farm}/cows/${no}/photo-${Date.now()}.jpg`;
+      const r=ref(state.storage,path);
+      await uploadBytes(r,file,{contentType:file.type});
+      const url=await getDownloadURL(r);
+      await updateCow(no,{photoUrl:url});
+      alert("Fotoğraf yüklendi.");
+    }catch(e){
+      console.log(e);
+      alert("Fotoğraf yüklenmedi. Firebase Storage açık mı kontrol et.");
+    }
+  }else{
+    const reader=new FileReader();
+    reader.onload=async()=>{await updateCow(no,{photoUrl:reader.result});alert("Fotoğraf bu cihaza kaydedildi. Canlı paylaşım için Firebase lazım.");};
+    reader.readAsDataURL(file);
+  }
+};
+
+init();
+</script>
+</body>
+</html>
